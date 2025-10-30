@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/pokemon_card.dart';
 import '../services/download_service.dart';
 
@@ -27,9 +28,11 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
   }
 
   Future<void> _checkIfDownloaded() async {
+    final setName = widget.card.set?.name ?? 'Unknown';
     final exists = await _downloadService.imageExists(
       widget.card.id,
       widget.card.name,
+      setName,
     );
     setState(() {
       _isDownloaded = exists;
@@ -50,10 +53,12 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
     });
 
     try {
+      final setName = widget.card.set?.name ?? 'Unknown';
       final filePath = await _downloadService.downloadCardImage(
         widget.card.images!.large!,
         widget.card.id,
         widget.card.name,
+        setName,
       );
 
       setState(() {
@@ -102,27 +107,22 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             Container(
               constraints: const BoxConstraints(maxHeight: 600),
               child: widget.card.images?.large != null
-                  ? Image.network(
-                      widget.card.images!.large!,
+                  ? CachedNetworkImage(
+                      imageUrl: widget.card.images!.large!,
                       fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.error_outline, size: 64),
-                              SizedBox(height: 8),
-                              Text('Failed to load image'),
-                            ],
-                          ),
-                        );
-                      },
+                      placeholder: (context, url) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      errorWidget: (context, url, error) => const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, size: 64),
+                            SizedBox(height: 8),
+                            Text('Failed to load image'),
+                          ],
+                        ),
+                      ),
                     )
                   : const Center(
                       child: Column(

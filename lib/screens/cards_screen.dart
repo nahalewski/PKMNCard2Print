@@ -38,8 +38,22 @@ class _CardsScreenState extends State<CardsScreen> {
       _errorMessage = null;
     });
 
+    // Try to load from cache first for instant display
+    final cachedCards = await _apiService.cacheService.getCachedCardsForSet(widget.set.id);
+    if (cachedCards != null && cachedCards.isNotEmpty) {
+      setState(() {
+        _cards = cachedCards;
+        _filteredCards = cachedCards;
+        _isLoading = false;
+      });
+      // Refresh in background
+      _refreshCardsInBackground();
+      return;
+    }
+
+    // No cache, load from API
     try {
-      final cards = await _apiService.getCardsBySet(widget.set.id);
+      final cards = await _apiService.getCardsBySet(widget.set.id, forceRefresh: false);
       setState(() {
         _cards = cards;
         _filteredCards = cards;
@@ -53,20 +67,74 @@ class _CardsScreenState extends State<CardsScreen> {
     }
   }
 
-  void _onSearchChanged(String query) {
+  Future<void> _refreshCardsInBackground() async {
+    try {
+      final cards = await _apiService.getCardsBySet(widget.set.id, forceRefresh: true);
+      if (mounted) {
+        setState(() {
+          _cards = cards;
+          if (_searchQuery.isEmpty) {
+            _filteredCards = cards;
+          }
+        });
+      }
+    } catch (e) {
+      // Silently fail - we already have cached data showing
+      print('Background refresh failed: $e');
+    }
+  }
+
+  Future<void> _refreshCards() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final cards = await _apiService.getCardsBySet(widget.set.id, forceRefresh: true);
+      setState(() {
+        _cards = cards;
+        _filteredCards = cards;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load cards: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String query) async {
     setState(() {
       _searchQuery = query;
       if (query.isEmpty) {
         _filteredCards = _cards;
       } else {
+        // Perform API search for cards
+        _searchCards(query);
+      }
+    });
+  }
+
+  Future<void> _searchCards(String query) async {
+    try {
+      // Search across all cards, not just current set
+      final searchResults = await _apiService.searchCards('name:$query');
+      setState(() {
+        _filteredCards = searchResults;
+      });
+    } catch (e) {
+      // If search fails, fall back to local filtering
+      setState(() {
         _filteredCards = _cards
             .where((card) =>
                 card.name.toLowerCase().contains(query.toLowerCase()) ||
                 (card.number != null &&
                     card.number!.toLowerCase().contains(query.toLowerCase())))
             .toList();
-      }
-    });
+      });
+    }
   }
 
   void _onSearchCleared() {
@@ -94,14 +162,14 @@ class _CardsScreenState extends State<CardsScreen> {
           else
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: _loadCards,
+              onPressed: _refreshCards,
               tooltip: 'Refresh',
             ),
         ],
       ),
       body: Column(
         children: [
-          SearchBar(
+          PokemonSearchBar(
             hintText: 'Search cards...',
             onSearchChanged: _onSearchChanged,
             onClear: _onSearchCleared,
@@ -164,7 +232,7 @@ class _CardsScreenState extends State<CardsScreen> {
     return GridView.builder(
       padding: const EdgeInsets.all(8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 7,
         childAspectRatio: 0.7,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,

@@ -32,8 +32,71 @@ class _HomeScreenState extends State<HomeScreen> {
       _errorMessage = null;
     });
 
+    // Try to load from cache first for instant display
+    final cachedSets = await _apiService.cacheService.getCachedSets();
+    if (cachedSets != null && cachedSets.isNotEmpty) {
+      setState(() {
+        _sets = cachedSets;
+        _filteredSets = cachedSets;
+        _isLoading = false;
+      });
+      // Refresh in background
+      _refreshSetsInBackground();
+      return;
+    }
+
+    // No cache, load from API
     try {
-      final sets = await _apiService.getSets();
+      final sets = await _apiService.getSets(forceRefresh: false);
+      setState(() {
+        _sets = sets;
+        _filteredSets = sets;
+        _isLoading = false;
+      });
+    } catch (e) {
+      // On error, try to show cached data as fallback
+      final cachedSets = await _apiService.cacheService.getCachedSets();
+      if (cachedSets != null && cachedSets.isNotEmpty) {
+        setState(() {
+          _sets = cachedSets;
+          _filteredSets = cachedSets;
+          _isLoading = false;
+          _errorMessage = 'Showing cached data (offline mode)';
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to load sets: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshSetsInBackground() async {
+    try {
+      final sets = await _apiService.getSets(forceRefresh: true);
+      if (mounted) {
+        setState(() {
+          _sets = sets;
+          if (_searchQuery.isEmpty) {
+            _filteredSets = sets;
+          }
+        });
+      }
+    } catch (e) {
+      // Silently fail - we already have cached data showing
+      print('Background refresh failed: $e');
+    }
+  }
+
+  Future<void> _refreshSets() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final sets = await _apiService.getSets(forceRefresh: true);
       setState(() {
         _sets = sets;
         _filteredSets = sets;
@@ -47,19 +110,34 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onSearchChanged(String query) {
+  void _onSearchChanged(String query) async {
     setState(() {
       _searchQuery = query;
       if (query.isEmpty) {
         _filteredSets = _sets;
       } else {
+        // Perform API search for sets
+        _searchSets(query);
+      }
+    });
+  }
+
+  Future<void> _searchSets(String query) async {
+    try {
+      final searchResults = await _apiService.searchSets(query);
+      setState(() {
+        _filteredSets = searchResults;
+      });
+    } catch (e) {
+      // If search fails, fall back to local filtering
+      setState(() {
         _filteredSets = _sets
             .where((set) =>
                 set.name.toLowerCase().contains(query.toLowerCase()) ||
                 set.series.toLowerCase().contains(query.toLowerCase()))
             .toList();
-      }
-    });
+      });
+    }
   }
 
   void _onSearchCleared() {
@@ -87,14 +165,14 @@ class _HomeScreenState extends State<HomeScreen> {
           else
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: _loadSets,
+              onPressed: _refreshSets,
               tooltip: 'Refresh',
             ),
         ],
       ),
       body: Column(
         children: [
-          SearchBar(
+          PokemonSearchBar(
             hintText: 'Search sets...',
             onSearchChanged: _onSearchChanged,
             onClear: _onSearchCleared,
@@ -157,8 +235,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return GridView.builder(
       padding: const EdgeInsets.all(8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.75,
+        crossAxisCount: 7,
+        childAspectRatio: 0.8,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),

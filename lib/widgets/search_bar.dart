@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-class SearchBar extends StatefulWidget {
+class PokemonSearchBar extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback? onClear;
 
-  const SearchBar({
+  const PokemonSearchBar({
     super.key,
     required this.hintText,
     required this.onSearchChanged,
@@ -14,10 +14,10 @@ class SearchBar extends StatefulWidget {
   });
 
   @override
-  State<SearchBar> createState() => _SearchBarState();
+  State<PokemonSearchBar> createState() => _PokemonSearchBarState();
 }
 
-class _SearchBarState extends State<SearchBar> {
+class _PokemonSearchBarState extends State<PokemonSearchBar> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
 
@@ -41,7 +41,7 @@ class _SearchBarState extends State<SearchBar> {
 
   void _onSearchChanged(String value) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 800), () {
       widget.onSearchChanged(value);
     });
   }

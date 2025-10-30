@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/pokemon_card.dart';
 
 class CardTile extends StatelessWidget {
@@ -31,14 +32,15 @@ class CardTile extends StatelessWidget {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                 ),
                 child: card.images?.small != null
-                    ? Image.network(
-                        card.images!.small!,
+                    ? CachedNetworkImage(
+                        imageUrl: card.images!.small!,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(Icons.image_not_supported, size: 32),
-                          );
-                        },
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                        errorWidget: (context, url, error) => const Center(
+                          child: Icon(Icons.image_not_supported, size: 32),
+                        ),
                       )
                     : const Center(
                         child: Icon(Icons.image_not_supported, size: 32),
